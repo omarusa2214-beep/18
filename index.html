@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لعبة الشطرنج الشاملة - نسخة المحترفين</title>
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <style>
+        :root {
+            --bg-color: #312e2b; --box-bg: #262421; --text-color: #ffffff; --text-muted: #aaa;
+            --border-color: #4c4a47; --btn-bg: #363431; --btn-color: #c3c2c1; --btn-hover: #4c4a47;
+            --container-max-w: 480px;
+        }
+        body.light-mode {
+            --bg-color: #f0d9b5; --box-bg: #ffffff; --text-color: #333333; --text-muted: #666666;
+            --border-color: #b58863; --btn-bg: #e0e0e0; --btn-color: #333333; --btn-hover: #d0d0d0;
+        }
+        body.desktop-mode { --container-max-w: 700px; }
+        
+        body { background-color:var(--bg-color); color:var(--text-color); font-family:-apple-system,sans-serif; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; overflow-x:hidden;}
+        .container-w { width:100%; max-width:var(--container-max-w); margin:0 auto; box-sizing:border-box; transition:max-width 0.3s;}
+        
+        .top-bar { display:none; justify-content:space-between; gap:10px; padding:10px; margin-top:10px; }
+        
+        #loginOverlay, .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; z-index:10000; }
+        .login-box, .modal-box, .info-container, .timer-box, .captured-area { background-color:var(--box-bg); border-radius:8px; text-align:center; }
+        .login-box, .modal-box { padding:30px; width:90%; max-width:350px; box-shadow:0 4px 15px rgba(0,0,0,0.5); border: 2px solid var(--border-color); }
+        .login-box input, #fenInput, select { width:100%; padding:12px; margin-bottom:15px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-color); color:var(--text-color); box-sizing:border-box; outline:none; }
+        
+        #gameContainer { display:none; width:100%; flex-direction:column; align-items:center; margin-top:10px; padding:0 10px; box-sizing:border-box; }
+        #board { width:100%; box-shadow:0 4px 15px rgba(0,0,0,0.5); position:relative; }
+        
+        .settings-grid, .buttons-grid, .auto-play-grid, .timer-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px; }
+        #gameMode { grid-column:span 2; }
+        
+        button { background:var(--btn-bg); color:var(--btn-color); border:none; padding:12px 10px; font-weight:bold; border-radius:8px; cursor:pointer; font-size:14px; transition:0.2s; }
+        button:hover { background:var(--btn-hover); }
+        .btn-primary { background:#81b64c !important; color:#fff !important; grid-column:span 2; font-size:16px;}
+        .btn-primary:hover { background:#95c961 !important; }
+        .btn-danger { background:#cc3333 !important; color:#fff !important; grid-column:span 2; font-size:16px;}
+        .btn-danger:hover { background:#e60000 !important; }
+        .btn-info { background:#5bc0de !important; color:#fff !important; font-size:15px;}
+        .btn-info:hover { background:#31b0d5 !important; }
+        
+        .auto-btn-active { background:#81b64c !important; color:#fff !important; }
+        .auto-btn-inactive { background:var(--btn-bg) !important; color:var(--btn-color) !important; }
+        
+        .info-container { padding: 15px 20px; margin-bottom: 15px; }
+        #status { font-size:1.2em; font-weight:bold; color:#81b64c; }
+        
+        .highlight-square { background:rgba(255,255,0,0.4) !important; cursor:pointer; }
+        .highlight-last-move { background:rgba(155,199,0,0.6) !important; }
+        .square-55d63 { cursor:pointer; }
+        .legal-move-indicator { width:30%; height:30%; background:rgba(0,0,0,0.4); border-radius:50%; position:absolute; top:35%; left:35%; pointer-events:none; z-index:10; }
+        .legal-move-indicator.capture { width:80%; height:80%; background:transparent; border:5px solid rgba(0,0,0,0.4); top:10%; left:10%; box-sizing:border-box; }
+        
+        .timer-box { padding:10px; border:2px solid transparent; transition:all 0.3s ease; }
+        .timer-box span:nth-child(1) { color:var(--text-muted); font-size:14px; }
+        .timer-box span:nth-child(2) { font-size:24px; font-weight:bold; font-family:monospace; display:block; margin-top:5px; }
+        .timer-active { border-color:#81b64c; background:var(--bg-color); box-shadow:0 0 10px rgba(129,182,76,0.5); }
+        .timer-danger-text { color:#ff4c4c !important; }
+        
+        .captured-area { display:flex; flex-wrap:wrap; gap:4px; min-height:42px; padding:5px 10px; align-items:center; }
+        .captured-piece { width:32px; height:32px; cursor:pointer; transition:transform 0.1s; }
+        .captured-piece:hover, .selected-captured { transform:scale(1.1); }
+        .selected-captured { border:2px solid #81b64c; border-radius:4px; background:rgba(129,182,76,0.3); }
+        
+        .modal-box h3 { color:var(--text-color); margin:0 0 15px 0; }
+        .promotion-piece { width:60px; height:60px; cursor:pointer; transition:transform 0.2s; margin:5px; background:var(--btn-bg); border-radius:8px; padding:5px; }
+        .promotion-piece:hover { transform:scale(1.1); background:#81b64c; }
+    </style>
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="manifest" href="./manifest.json?v=v1786371206823">
+    <meta name="theme-color" content="#ff00ff">
+    <link rel="apple-touch-icon" href="./icon-192.png?v=v1786371206823">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js?v=v1786371206823')
+            .then(reg => console.log('SW Registered'))
+            .catch(err => console.log('SW Failed', err));
+        });
+      }
+    </script>
+</head>
+<body>
+
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h3 style="color:var(--text-color); margin-top:0;">شطرنج - نظام محمي 🔒</h3>
+            <input type="password" id="passwordInput" placeholder="أدخل كلمة المرور...">
+            <button id="loginBtn" class="btn-primary" style="width: 100%;">دخول</button>
+            <div id="loginError" style="color:#ff4c4c; display:none; margin-top:10px; font-weight:bold;">كلمة المرور غير صحيحة!</div>
+        </div>
+    </div>
+
+    <!-- نافذة التصوير والـ FEN -->
+    <div id="fenModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="color:#5bc0de;">📸 إعداد الرقعة (FEN)</h3>
+            <p style="font-size: 13px; line-height: 1.5; color:var(--text-muted);">ملحوظة: تصوير الرقعة وتحليلها كصورة يحتاج سيرفرات ذكاء اصطناعي ولا يعمل أوفلاين. (البديل الاحترافي): انسخ كود الـ FEN لأي رقعة والصقه هنا لرسمها فوراً.</p>
+            <input type="text" id="fenInput" placeholder="أدخل كود FEN هنا..." style="direction: ltr; text-align: left;">
+            <div style="display:flex; gap:10px;">
+                <button id="applyFenBtn" class="btn-primary" style="flex:1;">رسم الطاولة</button>
+                <button id="closeFenBtn" class="btn-danger" style="flex:1;">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="drawWarningModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 style="color:#f39c12;">⚠️ تحذير تعادل وشيك!</h3>
+            <p style="color:var(--text-color);">الحركة دي هتوصل الجيم لتعادل (ستيماليت أو تكرار)! متأكد إنك عايز تلعبها؟</p>
+            <button class="btn-primary" id="closeWarningBtn" style="width:100%; background:#e67e22!important;">حسناً، فهمت</button>
+        </div>
+    </div>
+
+    <div id="promotionModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3>اختر القطعة للترقية</h3>
+            <div id="promotionPieces" style="display:flex; justify-content:space-around; flex-wrap:wrap;"></div>
+        </div>
+    </div>
+
+    <div class="top-bar container-w" id="topBar">
+        <button id="themeToggleBtn">☀️ لايت مود</button>
+        <button id="viewToggleBtn">💻 ديسكتوب</button>
+    </div>
+
+    <div id="gameContainer">
+        
+        <div class="buttons-grid container-w" style="margin-bottom:15px; margin-top:5px;">
+            <button id="freePlayBtn" class="btn-info">🔓 اللعب الحر: إيقاف</button>
+            <button id="scanBoardBtn" style="background-color:#f39c12; color:#fff;">📸 إعداد الرقعة (FEN)</button>
+        </div>
+
+        <div class="timer-grid container-w">
+            <div id="whiteTimerBox" class="timer-box timer-active"><span>الأبيض</span><span id="whiteTimerText">10:00</span></div>
+            <div id="blackTimerBox" class="timer-box"><span>الأسود</span><span id="blackTimerText">10:00</span></div>
+        </div>
+
+        <div class="info-container container-w">
+            <h2>شطرنج متكامل ♟️</h2>
+            <div id="status">الأبيض بيلعب</div>
+        </div>
+
+        <div class="settings-grid container-w">
+            <select id="gameMode">
+                <option value="vsPC">أنا ضد الكمبيوتر 🤖</option>
+                <option value="vsHuman">لعب ثنائي أوفلاين 👥</option>
+                <option value="stockfish">مود ستوك فيش (تحليل آلي) 🧠</option>
+            </select>
+            <select id="difficulty">
+                <option value="1">مستوى 1 (مبتدئ - خطوة 1)</option>
+                <option value="2">مستوى 2 (سهل - 3 خطوات)</option>
+                <option value="3">مستوى 3 (متوسط - 5 خطوات)</option>
+                <option value="4">مستوى 4 (صعب - 10 خطوات)</option>
+                <option value="5">مستوى 5 (محترف - 15 خطوة)</option>
+                <option value="6" selected>مستوى 6 (جراند ماستر - 20 خطوة)</option>
+            </select>
+            <select id="timeControl">
+                <option value="180">3 دقائق ⚡</option>
+                <option value="300">5 دقائق ⏱️</option>
+                <option value="600" selected>10 دقائق 🕰️</option>
+                <option value="1800">30 دقيقة 🐢</option>
+                <option value="0">بدون وقت ⏳</option>
+            </select>
+        </div>
+
+        <div id="capturedTop" class="captured-area container-w" style="margin-bottom:10px;"></div>
+        <div id="board" class="container-w"></div>
+        <div id="capturedBottom" class="captured-area container-w" style="margin-top:10px; margin-bottom:15px;"></div>
+        
+        <div class="auto-play-grid container-w" id="autoPlayControls" style="display:none;">
+            <button id="autoWhiteBtn" class="auto-btn-inactive">👤 أبيض تلقائي: إيقاف</button>
+            <button id="autoBlackBtn" class="auto-btn-inactive">👤 أسود تلقائي: إيقاف</button>
+        </div>
+
+        <div class="buttons-grid container-w">
+            <button id="undoBtn">◀ رجوع خطوة</button>
+            <button id="redoBtn">خطوة لقدام ▶</button>
+            <button id="flipBtn">🔃 قلب الطاولة</button>
+            <button id="switchColorBtn">🔄 العب بالأسود</button>
+            <button id="restartBtn" class="btn-primary">ابدأ جيم جديد</button>
+            <button id="stopAllBtn" class="btn-danger">🛑 إيقاف الكل</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.2/chess.js"></script>
+    
+    <script>
+        var board = null, game = new Chess(), $status = $('#status');
+        var stateHistory = [], currentStateIndex = -1;
+        var isThinking = false, selectedSquare = null, selectedCapturedPiece = null;
+        var forceStop = false, pendingPromotion = null;
+        var autoWhite = false, autoBlack = false, freePlayEnabled = false;
+        var timerInterval = null, whiteTime = 600, blackTime = 600, timerStarted = false, timeIsOut = false;
+        var engineReady = false, engine = null;
+
+        // Theme & View Settings
+        function applySettings() {
+            if(localStorage.getItem('chess_light') === 'true') { $('body').addClass('light-mode'); $('#themeToggleBtn').text('🌙 دارك مود'); }
+            if(localStorage.getItem('chess_desk') === 'true') { $('body').addClass('desktop-mode'); $('#viewToggleBtn').text('📱 موبايل'); }
+        }
+        $('#themeToggleBtn').on('click', function(){
+            $('body').toggleClass('light-mode'); var L = $('body').hasClass('light-mode');
+            $(this).text(L ? '🌙 دارك مود' : '☀️ لايت مود'); localStorage.setItem('chess_light', L);
+        });
+        $('#viewToggleBtn').on('click', function(){
+            $('body').toggleClass('desktop-mode'); var D = $('body').hasClass('desktop-mode');
+            $(this).text(D ? '📱 موبايل' : '💻 ديسكتوب'); localStorage.setItem('chess_desk', D);
+            setTimeout(function(){ if(board) board.resize(); }, 150);
+        });
+
+        // Engine Init
+        function setupEngine(eng) {
+            eng.onmessage = function(event) {
+                var line = typeof event === 'string' ? event : event.data;
+                if (line.includes('uciok') || line.includes('readyok')) engineReady = true;
+                else if (line.includes('bestmove')) {
+                    if (forceStop) { forceStop = false; isThinking = false; return; }
+                    var match = line.match(/^bestmove\s([a-h][1-8])([a-h][1-8])([qrob])?/);
+                    if (match) {
+                        game.move({ from: match[1], to: match[2], promotion: match[3] || 'q' });
+                        board.position(game.fen()); saveCurrentState(match[1], match[2]); startTimer(); updateStatus(); isThinking = false; checkAutoPlay();
+                    } else { isThinking = false; updateStatus(); }
+                }
+            };
+            eng.postMessage('uci'); eng.postMessage('isready');
+        }
+
+        try {
+            var blob = new Blob(["importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');"], { type: 'application/javascript' });
+            engine = new Worker(window.URL.createObjectURL(blob));
+            setupEngine(engine); setTimeout(function() { if(!engineReady) engine = null; }, 3000);
+        } catch (e) { engine = null; }
+
+        // Login
+        $(document).ready(function() {
+            applySettings();
+            var authKey = 'chess_auth_secure_v16'; 
+            if (localStorage.getItem(authKey) === 'true') {
+                $('#loginOverlay').hide(); $('#topBar').css('display', 'flex'); $('#gameContainer').css('display', 'flex'); initChessGame();
+            } else { $('#loginOverlay').css('display', 'flex'); }
+
+            $('#loginBtn').on('click', function() {
+                if ($('#passwordInput').val() === '#ZMsd42d*') {
+                    localStorage.setItem(authKey, 'true'); $('#loginError').hide();
+                    $('#loginOverlay').fadeOut(300, function() { $('#topBar').css('display', 'flex'); $('#gameContainer').css('display', 'flex'); initChessGame(); });
+                } else $('#loginError').show();
+            });
+            $('#passwordInput').on('keypress', function(e) { if(e.which===13) $('#loginBtn').click(); });
+            $('#closeWarningBtn').on('click', function() { $('#drawWarningModal').fadeOut(200); });
+            $('#closeFenBtn').on('click', function() { $('#fenModal').fadeOut(150); });
+            $('#scanBoardBtn').on('click', function() { $('#fenModal').css('display', 'flex'); });
+        });
+
+        // FEN Loader
+        $('#applyFenBtn').on('click', function(){
+            var f = $('#fenInput').val().trim(); var v = game.validate_fen(f);
+            if(v.valid){
+                game.load(f); board.position(f); stateHistory=[]; currentStateIndex=-1; saveCurrentState(null,null);
+                updateStatus(); $('#fenModal').fadeOut(); resetTimer();
+            } else alert('كود FEN غير صحيح! تأكد من النسخ بالكامل.');
+        });
+
+        // Timer
+        function formatTime(s) { if(s<=0)return"00:00"; var m=Math.floor(s/60), sec=s%60; return (m<10?"0"+m:m)+":"+(sec<10?"0"+sec:sec); }
+        function updateTimerUI() {
+            var tc = $('#timeControl').val();
+            if (tc === "0") { $('#whiteTimerText,#blackTimerText').text("∞"); $('#whiteTimerBox,#blackTimerBox').removeClass('timer-active'); return; }
+            $('#whiteTimerText').text(formatTime(whiteTime)); $('#blackTimerText').text(formatTime(blackTime));
+            (whiteTime<=30&&whiteTime>0) ? $('#whiteTimerText').addClass('timer-danger-text') : $('#whiteTimerText').removeClass('timer-danger-text');
+            (blackTime<=30&&blackTime>0) ? $('#blackTimerText').addClass('timer-danger-text') : $('#blackTimerText').removeClass('timer-danger-text');
+            $('#whiteTimerBox,#blackTimerBox').removeClass('timer-active');
+            if (timerStarted && !game.game_over() && !timeIsOut && !forceStop) { game.turn() === 'w' ? $('#whiteTimerBox').addClass('timer-active') : $('#blackTimerBox').addClass('timer-active'); }
+        }
+        function tickTimer() {
+            if (game.game_over() || timeIsOut || $('#timeControl').val() === "0" || forceStop) { clearInterval(timerInterval); return; }
+            if (game.turn() === 'w') { whiteTime--; if (whiteTime<=0) { whiteTime=0; timeIsOut=true; updateStatus(); } } 
+            else { blackTime--; if (blackTime<=0) { blackTime=0; timeIsOut=true; updateStatus(); } }
+            updateTimerUI();
+        }
+        function startTimer() {
+            if (!timerStarted && $('#timeControl').val()!=="0" && !game.game_over() && !timeIsOut) { timerStarted=true; timerInterval=setInterval(tickTimer,1000); } 
+            else if (timerStarted && !timeIsOut && $('#timeControl').val()!=="0") { clearInterval(timerInterval); timerInterval=setInterval(tickTimer,1000); }
+            updateTimerUI();
+        }
+        function resetTimer() { clearInterval(timerInterval); timerStarted=false; timeIsOut=false; var tc=parseInt($('#timeControl').val()); if(tc>0) {whiteTime=tc; blackTime=tc;} updateTimerUI(); }
+
+        // AutoPlay UI
+        function updateUI() {
+            $('#autoPlayControls').css('display', $('#gameMode').val() === 'stockfish' ? 'grid' : 'none');
+            $('#autoWhiteBtn').removeClass('auto-btn-active auto-btn-inactive').addClass(autoWhite ? 'auto-btn-active' : 'auto-btn-inactive').text(autoWhite ? '🤖 أبيض تلقائي: شغال' : '👤 أبيض تلقائي: إيقاف');
+            $('#autoBlackBtn').removeClass('auto-btn-active auto-btn-inactive').addClass(autoBlack ? 'auto-btn-active' : 'auto-btn-inactive').text(autoBlack ? '🤖 أسود تلقائي: شغال' : '👤 أسود تلقائي: إيقاف');
+            $('#freePlayBtn').css('background-color', freePlayEnabled ? '#d9534f' : '').text(freePlayEnabled ? '🔓 لعب حر: شغال (بدون قوانين)' : '🔓 اللعب الحر: إيقاف');
+        }
+        function checkAutoPlay() {
+            if (game.game_over()||isThinking||timeIsOut||forceStop||pendingPromotion) return;
+            var md=$('#gameMode').val(), trn=game.turn(), pC=board.orientation()==='white'?'w':'b', AI=false;
+            if(md==='vsPC' && trn!==pC && !freePlayEnabled) AI=true;
+            else if(md==='stockfish' && ((trn==='w'&&autoWhite)||(trn==='b'&&autoBlack))) AI=true;
+            if(AI) { isThinking=true; $('#status').append(' <span style="color:var(--text-muted);font-size:0.8em;">'+(md==='stockfish'?'(بيحلل الحركات...)':'(الكمبيوتر بيفكر...)')+'</span>'); clearTimeout(window.aiTimeout); window.aiTimeout=setTimeout(makeAIMove, 200); }
+        }
+        function saveCurrentState(fSq, tSq) {
+            if(currentStateIndex<stateHistory.length-1) stateHistory=stateHistory.slice(0,currentStateIndex+1);
+            stateHistory.push({ fen:game.fen(), lastMove:tSq?{from:fSq,to:tSq}:null }); currentStateIndex++;
+        }
+
+        function initChessGame() {
+            board = Chessboard('board', { draggable:false, position:'start', pieceTheme:'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' });
+            var st = localStorage.getItem('chess_save_state_v16');
+            if(st) {
+                try {
+                    st=JSON.parse(st); stateHistory=st.history||[]; currentStateIndex=st.historyIndex!==undefined?st.historyIndex:-1;
+                    if(stateHistory.length>0 && currentStateIndex>=0){var s=stateHistory[currentStateIndex]; game.load(s.fen); board.position(s.fen);} 
+                    else{game.reset();stateHistory=[];currentStateIndex=-1;saveCurrentState(null,null);}
+                    board.orientation(st.orientation||'white'); $('#switchColorBtn').text(board.orientation()==='white'?'🔄 العب بالأسود':'🔄 العب بالأبيض');
+                    $('#gameMode').val(st.mode||'vsPC'); $('#difficulty').val(st.diff||'6'); $('#timeControl').val(st.timeCtrl||"600");
+                    autoWhite=st.autoW||false; autoBlack=st.autoB||false; freePlayEnabled=st.freeP||false;
+                    whiteTime=st.wTime!==undefined?st.wTime:parseInt($('#timeControl').val()); blackTime=st.bTime!==undefined?st.bTime:parseInt($('#timeControl').val());
+                    timerStarted=st.tStarted||false; timeIsOut=st.timeOut||false;
+                    if(timerStarted && !game.game_over() && !timeIsOut && $('#timeControl').val()!=="0") timerInterval=setInterval(tickTimer,1000);
+                }catch(e){ game.reset();stateHistory=[];currentStateIndex=-1;saveCurrentState(null,null);resetTimer(); }
+            } else { game.reset();stateHistory=[];currentStateIndex=-1;saveCurrentState(null,null);resetTimer(); }
+            updateUI(); updateTimerUI(); updateStatus(); checkAutoPlay();
+        }
+
+        function saveGameState() {
+            var st = { history:stateHistory, historyIndex:currentStateIndex, mode:$('#gameMode').val(), diff:$('#difficulty').val(), timeCtrl:$('#timeControl').val(), orientation:board.orientation(), autoW:autoWhite, autoB:autoBlack, freeP:freePlayEnabled, wTime:whiteTime, bTime:blackTime, tStarted:timerStarted, timeOut:timeIsOut };
+            localStorage.setItem('chess_save_state_v16', JSON.stringify(st));
+        }
+
+        // Captured Pieces
+        function renderCapturedPieces() {
+            var counts = {w:{p:8,n:2,b:2,r:2,q:1}, b:{p:8,n:2,b:2,r:2,q:1}}, files=['a','b','c','d','e','f','g','h'];
+            for(var r=1;r<=8;r++) for(var c=0;c<8;c++){ var pc=game.get(files[c]+r); if(pc&&counts[pc.color]&&counts[pc.color][pc.type]!==undefined) counts[pc.color][pc.type]--; }
+            var hW='', hB='';
+            ['q','r','b','n','p'].forEach(function(p){
+                for(var i=0;i<counts.w[p];i++) hW+='<img src="https://chessboardjs.com/img/chesspieces/wikipedia/w'+p.toUpperCase()+'.png" class="captured-piece '+((selectedCapturedPiece&&selectedCapturedPiece.color==='w'&&selectedCapturedPiece.type===p)?'selected-captured':'')+'" data-color="w" data-type="'+p+'">';
+                for(var i=0;i<counts.b[p];i++) hB+='<img src="https://chessboardjs.com/img/chesspieces/wikipedia/b'+p.toUpperCase()+'.png" class="captured-piece '+((selectedCapturedPiece&&selectedCapturedPiece.color==='b'&&selectedCapturedPiece.type===p)?'selected-captured':'')+'" data-color="b" data-type="'+p+'">';
+            });
+            if(board.orientation()==='white'){ $('#capturedTop').html(hW); $('#capturedBottom').html(hB); }else{ $('#capturedTop').html(hB); $('#capturedBottom').html(hW); }
+        }
+
+        // Minimax Fallback
+        function getPieceValue(pc, x, y) {
+            if(!pc) return 0; var v=(pc.type==='p')?100:(pc.type==='n')?320:(pc.type==='b')?330:(pc.type==='r')?500:(pc.type==='q')?900:20000;
+            var pw=[[0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],[5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],[5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]];
+            var kn=[[-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],[-30,0,10,15,15,10,0,-30],[-30,5,15,20,20,15,5,-30],[-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],[-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]];
+            if(pc.type==='p') v+=(pc.color==='w')?pw[x][y]:pw[7-x][y]; else if(pc.type==='n') v+=kn[x][y]; return pc.color==='w'?v:-v;
+        }
+        function evaluateBoard(tg) { var e=0, f=['a','b','c','d','e','f','g','h']; for(var i=0;i<8;i++)for(var j=0;j<8;j++){var pc=tg.get(f[j]+(8-i));if(pc)e+=getPieceValue(pc,i,j);} return e; }
+        function minimax(d, tg, a, b, isMax) {
+            if(d===0) return evaluateBoard(tg); var mvs=tg.moves({verbose:true}); if(mvs.length===0) return tg.in_checkmate()?(isMax?-999999:999999):0;
+            mvs.sort(function(m1,m2){return ((m2.flags.includes('c')||m2.flags.includes('e'))?10:0)-((m1.flags.includes('c')||m1.flags.includes('e'))?10:0);});
+            var bst=isMax?-999999:999999;
+            for(var i=0;i<mvs.length;i++){ tg.move(mvs[i]); var v=minimax(d-1,tg,a,b,!isMax); tg.undo(); bst=isMax?Math.max(bst,v):Math.min(bst,v); if(isMax){a=Math.max(a,bst);if(b<=a)break;}else{b=Math.min(b,bst);if(b<=a)break;} } return bst;
+        }
+        function minimaxRoot(d, tg, isMax) {
+            var mvs=tg.moves({verbose:true}); if(mvs.length===0) return null;
+            mvs.sort(function(m1,m2){return ((m2.flags.includes('c')||m2.flags.includes('e'))?10:0)-((m1.flags.includes('c')||m1.flags.includes('e'))?10:0);});
+            var bst=isMax?-999999:999999, bMove=mvs[0];
+            for(var i=0;i<mvs.length;i++){ tg.move(mvs[i]); var v=minimax(d-1,tg,-1000000,1000000,!isMax); tg.undo(); if((isMax&&v>bst)||(!isMax&&v<bst)){bst=v;bMove=mvs[i];} } return bMove;
+        }
+        function makeAIMove() {
+            if(game.game_over()||timeIsOut||forceStop){isThinking=false;return;}
+            var lvl=parseInt($('#difficulty').val()), trn=game.turn(), pC=board.orientation()==='white'?'w':'b', md=$('#gameMode').val();
+            if(md==='vsPC' && trn===pC && !freePlayEnabled) { isThinking=false; return; }
+            if(md==='stockfish') { if((trn==='w'&&!autoWhite)||(trn==='b'&&!autoBlack)) { isThinking=false; return; } }
+            
+            if(engine&&engineReady){
+                var sL=[0,0,5,10,15,20,20][lvl], cmd=lvl===6?'go movetime 2000':'go depth '+[1,1,3,5,10,15][lvl];
+                engine.postMessage('setoption name Skill Level value '+sL); engine.postMessage('position fen '+game.fen()); engine.postMessage(cmd);
+            }else{
+                var d=lvl>=4?4:lvl;
+                window.aiTimeout=setTimeout(function(){
+                    if(forceStop){forceStop=false;isThinking=false;return;}
+                    var vg=new Chess(game.fen()), bm=minimaxRoot(d,vg,trn==='w');
+                    if(bm){game.move(bm);saveCurrentState(bm.from,bm.to);}else{var fms=game.moves({verbose:true});if(fms.length>0){game.move(fms[0]);saveCurrentState(fms[0].from,fms[0].to);}}
+                    board.position(game.fen()); startTimer(); updateStatus(); isThinking=false; checkAutoPlay();
+                },50);
+            }
+        }
+
+        // Logic
+        function removeHighlights(){ $('#board .square-55d63').find('.legal-move-indicator').remove(); $('#board .square-55d63').removeClass('highlight-square'); }
+        function highlightLegalMoves(sq){
+            if(freePlayEnabled) return; var mvs=game.moves({square:sq,verbose:true}); if(mvs.length===0) return;
+            $('#board .square-'+sq).addClass('highlight-square');
+            mvs.forEach(function(m){ var $sq=$('#board .square-'+m.to); if(m.flags.includes('c')||m.flags.includes('e')) $sq.append('<div class="legal-move-indicator capture"></div>'); else $sq.append('<div class="legal-move-indicator"></div>'); });
+        }
+        function changeTurnInFen(){ var f=game.fen().split(' '); f[1]=(f[1]==='w')?'b':'w'; f[3]='-'; f[4]='0'; if(f[1]==='w') f[5]=parseInt(f[5])+1; game.load(f.join(' ')); }
+        
+        $(document).on('click', '.captured-piece', function(){
+            if((game.game_over()&&!freePlayEnabled)||isThinking||forceStop||timeIsOut||pendingPromotion) return;
+            var c=$(this).attr('data-color'), t=$(this).attr('data-type');
+            if(selectedCapturedPiece&&selectedCapturedPiece.color===c&&selectedCapturedPiece.type===t) selectedCapturedPiece=null;
+            else{selectedCapturedPiece={color:c,type:t};selectedSquare=null;removeHighlights();} renderCapturedPieces();
+        });
+
+        $(document).on('click', '.promotion-piece', function(){
+            var p=$(this).attr('data-piece'); $('#promotionModal').fadeOut(150);
+            if(pendingPromotion){
+                if(pendingPromotion.isFreePlay){
+                    var pc=game.get(pendingPromotion.from).color; game.remove(pendingPromotion.from); var suc=game.put({type:p,color:pc},pendingPromotion.to);
+                    if(suc){changeTurnInFen();startTimer();board.position(game.fen());removeHighlights();saveCurrentState(pendingPromotion.from,pendingPromotion.to);updateStatus();checkAutoPlay();}
+                }else{
+                    var m=game.move({from:pendingPromotion.from,to:pendingPromotion.to,promotion:p});
+                    if(m){startTimer();board.position(game.fen());removeHighlights();saveCurrentState(m.from,m.to);updateStatus();checkAutoPlay();}
+                }
+                pendingPromotion=null;selectedSquare=null;
+            }
+        });
+
+        $('#board').on('click', '.square-55d63', function() {
+            if (isThinking || board === null || timeIsOut || pendingPromotion) return;
+            if (!freePlayEnabled && game.game_over()) return;
+            forceStop = false; 
+
+            var sq = $(this).attr('data-square'), pc = game.get(sq), md = $('#gameMode').val(), pC = board.orientation() === 'white' ? 'w' : 'b';
+
+            if (freePlayEnabled) {
+                if (selectedCapturedPiece) {
+                    if (selectedCapturedPiece.type === 'p' && (sq[1] === '1' || sq[1] === '8')) { selectedCapturedPiece = null; renderCapturedPieces(); return; }
+                    game.put({ type: selectedCapturedPiece.type, color: selectedCapturedPiece.color }, sq); changeTurnInFen(); startTimer(); board.position(game.fen()); saveCurrentState(null, sq); selectedCapturedPiece = null; updateStatus(); checkAutoPlay(); return;
+                }
+                if (selectedSquare) {
+                    if (selectedSquare === sq) { selectedSquare = null; removeHighlights(); return; }
+                    var sp = game.get(selectedSquare);
+                    if (sp.type === 'p' && (sq[1] === '1' || sq[1] === '8')) {
+                        pendingPromotion = { from: selectedSquare, to: sq, isFreePlay: true }; var pHtml = '';
+                        ['q', 'r', 'b', 'n'].forEach(function(x) { pHtml += '<img src="https://chessboardjs.com/img/chesspieces/wikipedia/' + sp.color + x.toUpperCase() + '.png" class="promotion-piece" data-piece="' + x + '">'; });
+                        $('#promotionPieces').html(pHtml); $('#promotionModal').css('display', 'flex'); return; 
+                    }
+                    game.remove(selectedSquare); var sc = game.put(sp, sq);
+                    if (sc) { changeTurnInFen(); startTimer(); board.position(game.fen()); removeHighlights(); saveCurrentState(selectedSquare, sq); selectedSquare = null; redoStack = []; updateStatus(); checkAutoPlay(); } 
+                    else { game.put(sp, selectedSquare); selectedSquare = null; removeHighlights(); } return;
+                } else { if (!pc) return; selectedSquare = sq; removeHighlights(); $('#board .square-' + sq).addClass('highlight-square'); return; }
+            }
+
+            if (md === 'vsPC' && game.turn() !== pColor) return;
+            if (md === 'stockfish' && ((game.turn() === 'w' && autoWhite) || (game.turn() === 'b' && autoBlack))) return;
+
+            if (selectedCapturedPiece) {
+                if (pc) { if (pc.color === game.turn()) { selectedCapturedPiece = null; renderCapturedPieces(); selectedSquare = sq; highlightLegalMoves(sq); } else { selectedCapturedPiece = null; renderCapturedPieces(); } return; }
+                if (selectedCapturedPiece.type === 'p' && (sq[1] === '1' || sq[1] === '8')) { selectedCapturedPiece = null; renderCapturedPieces(); return; }
+                game.put({ type: selectedCapturedPiece.type, color: selectedCapturedPiece.color }, sq); changeTurnInFen(); startTimer(); board.position(game.fen()); saveCurrentState(null, sq); selectedCapturedPiece = null; updateStatus(); checkAutoPlay(); return;
+            }
+
+            if (selectedSquare) {
+                if (selectedSquare === sq) { selectedSquare = null; removeHighlights(); return; }
+                if (pc && pc.color === game.turn()) { selectedSquare = sq; removeHighlights(); highlightLegalMoves(sq); return; }
+                var isPrm=false, mvs=game.moves({verbose:true}); for(var i=0;i<mvs.length;i++)if(mvs[i].from===selectedSquare&&mvs[i].to===sq&&mvs[i].promotion){isPrm=true;break;}
+                if (isPrm) {
+                    pendingPromotion = { from: selectedSquare, to: sq, isFreePlay: false }; var pHtml = '';
+                    ['q', 'r', 'b', 'n'].forEach(function(x) { pHtml += '<img src="https://chessboardjs.com/img/chesspieces/wikipedia/' + game.turn() + x.toUpperCase() + '.png" class="promotion-piece" data-piece="' + x + '">'; });
+                    $('#promotionPieces').html(pHtml); $('#promotionModal').css('display', 'flex'); return; 
+                }
+                var tm=new Chess(game.fen()), tst=tm.move({from:selectedSquare,to:sq,promotion:'q'});
+                if (tst&&tm.in_draw()){$('#drawWarningText').text("هذه الحركة ستؤدي لتعادل! متأكد؟");$('#drawWarningModal').css('display','flex');}
+                var m=game.move({from:selectedSquare,to:sq,promotion:'q'});
+                if(m){startTimer();board.position(game.fen());removeHighlights();selectedSquare=null;redoStack=[];saveCurrentState(m.from,m.to);updateStatus();checkAutoPlay();}
+                else{selectedSquare=null;removeHighlights();}
+            } else { if(!pc||pc.color!==game.turn()) return; selectedSquare=sq; removeHighlights(); highlightLegalMoves(sq); }
+        });
+
+        function updateStatus() {
+            var st='', clr=game.turn()==='b'?'الأسود':'الأبيض';
+            if (timeIsOut) { st='انتهى الوقت! '+(whiteTime<=0?'الأبيض':'الأسود')+' خسر الجيم ⏳'; clearInterval(timerInterval); } 
+            else if (game.in_checkmate()) { st='كش مات! '+clr+' خسر الجيم.'; clearInterval(timerInterval); } 
+            else if (game.in_draw()) { st='الجيم خلص تعادل!'; clearInterval(timerInterval); } 
+            else { st='دور: '+clr; if(game.in_check()) st+=' (كش ملك!)'; }
+            $status.html(st);
+            $('.square-55d63').removeClass('highlight-last-move');
+            if (currentStateIndex>=0&&stateHistory[currentStateIndex]&&stateHistory[currentStateIndex].lastMove){ var lm=stateHistory[currentStateIndex].lastMove; if(lm.from)$('#board .square-'+lm.from).addClass('highlight-last-move'); if(lm.to)$('#board .square-'+lm.to).addClass('highlight-last-move'); }
+            renderCapturedPieces(); updateTimerUI(); saveGameState(); 
+        }
+
+        $('#freePlayBtn').on('click', function() { freePlayEnabled=!freePlayEnabled; updateUI(); selectedSquare=null; selectedCapturedPiece=null; removeHighlights(); saveGameState(); });
+        $('#autoWhiteBtn').on('click', function() { if(timeIsOut||forceStop) return; autoWhite=!autoWhite; updateUI(); if(!isThinking) checkAutoPlay(); });
+        $('#autoBlackBtn').on('click', function() { if(timeIsOut||forceStop) return; autoBlack=!autoBlack; updateUI(); if(!isThinking) checkAutoPlay(); });
+
+        $('#undoBtn').on('click', function() {
+            forceStop=false; if(isThinking) return; selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); removeHighlights(); renderCapturedPieces();
+            var undid=false, m=$('#gameMode').val();
+            if((m==='vsPC'||m==='stockfish')&&!freePlayEnabled){ if(currentStateIndex>1){currentStateIndex-=2;undid=true;} } else{ if(currentStateIndex>0){currentStateIndex--;undid=true;} }
+            if(undid){var s=stateHistory[currentStateIndex]; game.load(s.fen); board.position(s.fen); updateStatus(); checkAutoPlay();}
+        });
+
+        $('#redoBtn').on('click', function() {
+            forceStop=false; if(isThinking) return; selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); removeHighlights(); renderCapturedPieces();
+            var redid=false, m=$('#gameMode').val();
+            if((m==='vsPC'||m==='stockfish')&&!freePlayEnabled&&currentStateIndex<stateHistory.length-2){currentStateIndex+=2;redid=true;} else if(currentStateIndex<stateHistory.length-1){currentStateIndex++;redid=true;}
+            if(redid){var s=stateHistory[currentStateIndex]; game.load(s.fen); board.position(s.fen); updateStatus(); checkAutoPlay();}
+        });
+
+        $('#flipBtn').on('click', function() { if(!board) return; board.flip(); selectedSquare=null; removeHighlights(); updateStatus(); saveGameState(); });
+        $('#switchColorBtn').on('click', function() {
+            if(isThinking||!board||forceStop) return; forceStop=false; game.reset(); stateHistory=[]; currentStateIndex=-1; saveCurrentState(null,null);
+            selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); resetTimer(); removeHighlights();
+            board.orientation(board.orientation()==='white'?'black':'white'); $(this).text(board.orientation()==='white'?'🔄 العب بالأسود':'🔄 العب بالأبيض'); board.start(); updateStatus(); checkAutoPlay();
+        });
+        $('#restartBtn').on('click', function() {
+            if(isThinking||!board) return; game.reset(); stateHistory=[]; currentStateIndex=-1; saveCurrentState(null,null);
+            selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); forceStop=false; resetTimer();
+            board.start(); board.orientation('white'); $('#switchColorBtn').text('🔄 العب بالأسود'); updateStatus(); removeHighlights(); checkAutoPlay();
+        });
+        $('#gameMode, #difficulty').on('change', function() {
+            if(isThinking) return; selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); forceStop=false; removeHighlights(); updateUI(); saveGameState(); checkAutoPlay();
+        });
+        $('#timeControl').on('change', function() { $('#restartBtn').click(); });
+
+        $('#stopAllBtn').on('click', function() {
+            forceStop=true; if(engine)engine.postMessage('stop'); clearTimeout(window.aiTimeout); 
+            isThinking=false; autoWhite=false; autoBlack=false; updateUI(); clearInterval(timerInterval); timerStarted=false;
+            selectedSquare=null; selectedCapturedPiece=null; pendingPromotion=null; $('#promotionModal').hide(); removeHighlights(); renderCapturedPieces();
+            $('#status').html($('#status').html().replace(/<span.*?\(.*?\).*?<\/span>/g, '')+' <span style="color:#ff4c4c; font-size:0.8em;">[تم الإيقاف]</span>'); saveGameState();
+        });
+
+    </script>
+</body>
+</html>
