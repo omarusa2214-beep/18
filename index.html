@@ -341,13 +341,13 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <link rel="manifest" href="./manifest.json?v=v1786497615143">
-    <meta name="theme-color" content="#bb647e">
-    <link rel="apple-touch-icon" href="./icon-192.png?v=v1786497615143">
+    <link rel="manifest" href="./manifest.json?v=v1786529936386">
+    <meta name="theme-color" content="#42b8b8">
+    <link rel="apple-touch-icon" href="./icon-192.png?v=v1786529936386">
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js?v=v1786497615143')
+          navigator.serviceWorker.register('./sw.js?v=v1786529936386')
             .then(reg => console.log('SW Registered'))
             .catch(err => console.log('SW Failed', err));
         });
@@ -492,12 +492,12 @@
         var timerStarted = false;
         var timeIsOut = false;
 
-        // المتغيرات الجديدة للإضافات
+        // المتغيرات الخاصة بالإضافات
         var isLightMode = false;
         var isDesktopView = false;
         var isFreePlay = false;
 
-        // ---------- تهيئة محرك ستوك فيش الحقيقي ---------- //
+        // ---------- تهيئة محرك ستوك فيش الحقيقي (الطريقة المضمونة والجديدة) ---------- //
         var engineReady = false;
         var engine = null;
 
@@ -536,20 +536,19 @@
             eng.postMessage('isready');
         }
 
-        try {
-            var blob = new Blob([
-                "importScripts('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');"
-            ], { type: 'application/javascript' });
-            var url = window.URL.createObjectURL(blob);
-            engine = new Worker(url);
-            setupEngine(engine);
-            
-            setTimeout(function() {
-                if (!engineReady) engine = null;
-            }, 3000);
-        } catch (e) {
-            engine = null; 
-        }
+        // الطريقة دي بتمنع حظر المتصفحات للمحرك (CORS bypass) وبتضمن إنه يشتغل دايماً
+        fetch('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js')
+            .then(response => response.text())
+            .then(script => {
+                var blob = new Blob([script], { type: 'application/javascript' });
+                var url = window.URL.createObjectURL(blob);
+                engine = new Worker(url);
+                setupEngine(engine);
+            })
+            .catch(err => {
+                console.log("تعذر تحميل ستوك فيش، سيتم استخدام المحرك البديل.", err);
+                engine = null;
+            });
 
         // ---------- نظام الحماية بكلمة المرور ----------
         $(document).ready(function() {
@@ -722,7 +721,7 @@
             currentStateIndex++;
         }
 
-        // ---------- الإضافات الجديدة وتحديث واجهتها ----------
+        // ---------- الإضافات وتحديث واجهتها ----------
         function updateAddonsUI() {
             if (isLightMode) {
                 $('body').addClass('light-mode');
@@ -735,11 +734,11 @@
             if (isDesktopView) {
                 $('body').addClass('desktop-view');
                 $('#viewToggleBtn').text('📱 موبايل');
-                setTimeout(function(){ board.resize(); }, 350); // إعادة رسم الرقعة
+                setTimeout(function(){ board.resize(); }, 350);
             } else {
                 $('body').removeClass('desktop-view');
                 $('#viewToggleBtn').text('💻 ديسكتوب');
-                setTimeout(function(){ board.resize(); }, 350); // إعادة رسم الرقعة
+                setTimeout(function(){ board.resize(); }, 350);
             }
 
             if (isFreePlay) {
@@ -1027,7 +1026,7 @@
             return bestMoveFound;
         }
 
-        // ---------- إدارة حركات الذكاء الاصطناعي ----------
+        // ---------- إدارة حركات الذكاء الاصطناعي (تم التعديل لمنع التهنيج) ----------
         function makeAIMove() {
             var mode = $('#gameMode').val();
             var turn = game.turn();
@@ -1044,12 +1043,13 @@
             if (engine && engineReady) {
                 var skillLevel = 0;
                 var moveCommand = 'go depth 1';
+                // استخدام عمق تفكير (Depth) بدلاً من الوقت (movetime) لمنع التهنيج التام على الموبايل
                 if (level === 1) { skillLevel = 0; moveCommand = 'go depth 1'; }
-                if (level === 2) { skillLevel = 5; moveCommand = 'go depth 3'; }
-                if (level === 3) { skillLevel = 10; moveCommand = 'go depth 5'; }
-                if (level === 4) { skillLevel = 15; moveCommand = 'go depth 10'; }
-                if (level === 5) { skillLevel = 20; moveCommand = 'go depth 15'; }
-                if (level === 6) { skillLevel = 20; moveCommand = 'go movetime 2000'; }
+                if (level === 2) { skillLevel = 3; moveCommand = 'go depth 2'; }
+                if (level === 3) { skillLevel = 7; moveCommand = 'go depth 4'; }
+                if (level === 4) { skillLevel = 12; moveCommand = 'go depth 6'; }
+                if (level === 5) { skillLevel = 17; moveCommand = 'go depth 8'; }
+                if (level === 6) { skillLevel = 20; moveCommand = 'go depth 10'; } // يحلل أسرع بكثير وقوي جداً
 
                 engine.postMessage('setoption name Skill Level value ' + skillLevel);
                 engine.postMessage('position fen ' + game.fen());
